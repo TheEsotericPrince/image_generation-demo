@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Image Generator — Oversight Studio</title>
+<script src="https://js.puter.com/v2/"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #07061A;
+  --panel: #0F0E28;
+  --border: rgba(139,92,246,0.18);
+  --violet: #8B5CF6;
+  --violet2: #A78BFA;
+  --cyan: #00C4CC;
+  --text: #EEEEF8;
+  --muted: rgba(255,255,255,0.42);
+  --card: #12113A;
+}
+body { background: var(--bg); font-family: 'Inter', sans-serif; color: var(--text); min-height: 100vh; }
+
+/* ── HEADER ── */
+.hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(15,14,40,0.9);
+  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 100;
+}
+.hdr-left { display: flex; align-items: center; gap: 10px; }
+.hdr-logo { width: 32px; height: 32px; }
+.hdr-name { font-size: 15px; font-weight: 600; background: linear-gradient(120deg,#C4B5FD,#A855F7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.hdr-badge { font-size: 9px; font-weight: 600; letter-spacing: 1.5px; padding: 3px 8px; border-radius: 100px; background: rgba(139,92,246,0.15); border: 0.5px solid rgba(139,92,246,0.35); color: #A78BFA; }
+.hdr-status { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); font-family: 'Geist Mono', monospace; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22C55E; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0.4)} 50%{box-shadow:0 0 0 5px rgba(34,197,94,0)} }
+
+/* ── LAYOUT ── */
+.layout { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 61px); }
+
+/* ── LEFT PANEL ── */
+.panel {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 24px 20px;
+  display: flex; flex-direction: column; gap: 20px;
+  overflow-y: auto;
+}
+
+.panel-section { display: flex; flex-direction: column; gap: 8px; }
+.panel-label { font-size: 9px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: var(--violet2); display: flex; align-items: center; gap: 8px; }
+.panel-label::after { content:''; flex:1; height:0.5px; background: var(--border); }
+
+textarea, select, input[type=range] {
+  width: 100%; background: rgba(255,255,255,0.04);
+  border: 0.5px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: 'Inter', sans-serif;
+  font-size: 12px; padding: 12px 14px; resize: none; outline: none;
+  transition: border-color 0.2s;
+}
+textarea:focus, select:focus { border-color: rgba(139,92,246,0.5); }
+textarea { line-height: 1.6; min-height: 100px; }
+select { padding: 10px 14px; cursor: pointer; }
+select option { background: #0F0E28; }
+
+.range-wrap { display: flex; flex-direction: column; gap: 6px; }
+.range-row { display: flex; justify-content: space-between; align-items: center; }
+.range-lbl { font-size: 11px; color: var(--muted); }
+.range-val { font-family: 'Geist Mono', monospace; font-size: 11px; color: var(--violet2); }
+input[type=range] {
+  padding: 0; height: 4px; border-radius: 100px; cursor: pointer;
+  accent-color: var(--violet); border: none; background: rgba(139,92,246,0.2);
+}
+
+/* Preset prompts */
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-chip {
+  font-size: 10px; padding: 5px 10px; border-radius: 100px;
+  background: rgba(139,92,246,0.08); border: 0.5px solid rgba(139,92,246,0.22);
+  color: var(--violet2); cursor: pointer; transition: all 0.15s;
+  font-family: 'Inter', sans-serif;
+}
+.preset-chip:hover { background: rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.5); }
+
+/* Generate button */
+.gen-btn {
+  width: 100%; padding: 14px; border: none; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(135deg, #7C3AED, #6D28D9);
+  color: white; font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif;
+  transition: all 0.2s; position: relative; overflow: hidden;
+  box-shadow: 0 4px 24px rgba(109,40,217,0.4);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.gen-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(109,40,217,0.5); }
+.gen-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.gen-btn .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: none; }
+.gen-btn.loading .spinner { display: block; }
+.gen-btn.loading .btn-text { opacity: 0.8; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Model note */
+.model-note { font-size: 10px; color: var(--muted); text-align: center; line-height: 1.5; }
+.model-note a { color: var(--violet2); text-decoration: none; }
+
+/* ── RIGHT: CANVAS ── */
+.canvas-area {
+  padding: 28px;
+  display: flex; flex-direction: column; gap: 20px;
+  overflow-y: auto;
+}
+
+/* Empty state */
+.empty {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; text-align: center; padding: 60px 40px;
+}
+.empty-icon {
+  width: 80px; height: 80px; border-radius: 20px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(0,196,204,0.08));
+  border: 0.5px solid rgba(139,92,246,0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 32px;
+}
+.empty-title { font-size: 20px; font-weight: 300; color: var(--text); letter-spacing: -0.3px; }
+.empty-sub { font-size: 13px; color: var(--muted); line-height: 1.65; max-width: 360px; }
+
+/* Error state */
+.error-box {
+  background: rgba(239,68,68,0.08); border: 0.5px solid rgba(239,68,68,0.25);
+  border-radius: 12px; padding: 14px 16px;
+  font-size: 12px; color: #FCA5A5; line-height: 1.6;
+  display: none;
+}
+.error-box.show { display: block; }
+
+/* Progress bar */
+.progress-wrap { display: none; }
+.progress-wrap.show { display: flex; flex-direction: column; gap: 8px; }
+.progress-label { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+.progress-bar { height: 3px; background: rgba(139,92,246,0.15); border-radius: 100px; overflow: hidden; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #7C3AED, #00C4CC); border-radius: 100px; transition: width 0.3s ease; width: 0%; }
+
+/* Gallery */
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.img-card {
+  background: var(--card); border-radius: 16px; overflow: hidden;
+  border: 0.5px solid var(--border);
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.img-card:hover { transform: translateY(-3px); box-shadow: 0 16px 40px rgba(109,40,217,0.2); }
+.img-card img { width: 100%; display: block; }
+.img-meta {
+  padding: 12px 14px;
+  border-top: 0.5px solid var(--border);
+}
+.img-prompt { font-size: 10.5px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.img-actions { display: flex; gap: 8px; }
+.img-btn {
+  flex: 1; padding: 7px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 500; font-family: 'Inter', sans-serif;
+  transition: all 0.15s;
+}
+.img-btn-dl { background: linear-gradient(135deg,#7C3AED,#6D28D9); color: white; }
+.img-btn-dl:hover { background: linear-gradient(135deg,#8B5CF6,#7C3AED); }
+.img-btn-cp { background: rgba(255,255,255,0.06); color: var(--muted); border: 0.5px solid var(--border); }
+.img-btn-cp:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+/* Generation timestamp badge */
+.img-time {
+  position: absolute; top: 10px; right: 10px;
+  font-family: 'Geist Mono', monospace; font-size: 9px;
+  background: rgba(7,6,26,0.8); color: rgba(255,255,255,0.5);
+  padding: 3px 7px; border-radius: 100px;
+  backdrop-filter: blur(4px);
+}
+
+/* Session count */
+.session-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: rgba(139,92,246,0.06);
+  border: 0.5px solid rgba(139,92,246,0.15); border-radius: 10px;
+  font-size: 11px;
+}
+.session-count { color: var(--violet2); font-family: 'Geist Mono', monospace; font-weight: 600; }
+.session-lbl { color: var(--muted); }
+.session-clear { font-size: 10px; color: rgba(255,255,255,0.25); cursor: pointer; text-decoration: underline; }
+.session-clear:hover { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-left">
+    <svg class="hdr-logo" viewBox="0 0 1050 979" fill="none">
+      <path d="M507.891 955.889C507.891 968.752 497.252 979.118 484.421 978.207C406.919 972.705 334.122 951.464 269.678 917.896C257.541 911.574 262.938 893.892 276.623 893.892C346.318 893.892 413.775 884.194 477.707 866.068C492.667 861.827 507.891 872.829 507.891 888.379V955.889Z M541.891 888.501C541.891 872.956 557.103 861.955 572.061 866.186C635.867 884.236 703.182 893.892 772.725 893.892C786.435 893.892 791.842 911.606 779.681 917.938C715.356 951.43 642.711 972.642 565.373 978.182C552.538 979.101 541.891 968.733 541.891 955.864V888.501Z M178.44 521.495C178.649 521.713 178.781 521.994 178.817 522.294C190.743 620.741 255.057 711.485 351.961 761.779C355.397 764.178 358.853 766.549 362.331 768.891C378.404 779.712 394.928 789.915 411.869 799.467C430.35 809.887 427.625 837.873 406.779 841.817C364.625 849.793 321.118 853.968 276.623 853.968C240.328 853.968 204.692 851.189 169.912 845.837C165.645 845.181 161.662 843.289 158.471 840.38C122.082 807.22 90.827 769.16 65.9256 727.34C62.4362 721.48 61.9185 714.327 64.4688 708.001C91.9455 639.849 129.908 577.036 176.364 521.563C176.897 520.926 177.865 520.896 178.44 521.495Z M871.005 521.497C871.58 520.897 872.549 520.928 873.082 521.564C919.538 577.038 957.498 639.851 984.975 708.003C987.525 714.329 987.007 721.482 983.518 727.342C958.621 769.153 927.374 807.206 890.995 840.362C887.804 843.269 883.822 845.161 879.556 845.819C844.738 851.182 809.062 853.968 772.725 853.968C728.23 853.968 684.722 849.793 642.568 841.817C621.722 837.873 618.997 809.887 637.478 799.467C654.419 789.915 670.944 779.712 687.017 768.891C690.4 766.613 693.762 764.306 697.105 761.974C794.22 711.721 858.685 620.871 870.627 522.296C870.663 521.996 870.796 521.715 871.005 521.497Z M507.891 92.5491C507.891 108.099 492.667 119.102 477.707 114.86C413.776 96.7348 346.318 87.0374 276.623 87.0373C261.622 87.0373 255.604 67.7269 268.897 60.7748C333.533 26.9711 406.606 5.58066 484.421 0.0557841C497.252 -0.855193 507.891 9.5111 507.891 22.3741V92.5491Z M541.891 22.3987C541.891 9.53043 552.538 -0.837878 565.373 0.0814356C643.026 5.64314 715.947 27.0047 780.467 60.7335C793.783 67.6948 787.755 87.0373 772.729 87.0373C703.184 87.0374 635.868 96.6931 572.061 114.743C557.103 118.974 541.891 107.973 541.891 92.4281V22.3987Z M18.6714 358.982C24.3091 339.784 50.1253 339.103 59.4905 356.785C81.8245 398.953 108.135 438.684 137.922 475.482C144.982 484.204 144.982 496.722 137.922 505.444C108.355 541.97 82.2134 581.387 59.9861 623.208C50.6215 640.827 24.8931 640.172 19.1947 621.05C6.976 580.048 0.312772 536.881 0.0107422 492.304L0 489.132C4.89536e-06 444.071 6.49996 400.43 18.6714 358.982Z M989.953 356.786C999.318 339.104 1025.13 339.785 1030.77 358.983C1042.94 400.43 1049.45 444.071 1049.45 489.132L1049.43 492.304C1049.13 536.881 1042.47 580.048 1030.25 621.05C1024.55 640.172 998.822 640.826 989.457 623.207C967.23 581.387 941.089 541.97 911.524 505.445C904.463 496.723 904.463 484.205 911.523 475.483C941.31 438.686 967.619 398.953 989.953 356.786Z M276.623 126.961C321.119 126.961 364.627 131.136 406.782 139.111C427.628 143.055 430.353 171.042 411.873 181.462C396.719 190.007 381.899 199.073 367.437 208.636C366.471 209.275 365.455 209.842 364.407 210.335C259.526 259.627 189.84 355.286 178.456 459.1C178.43 459.329 178.331 459.544 178.171 459.71C177.74 460.161 177.014 460.138 176.613 459.66C129.671 403.669 91.3876 340.189 63.8115 271.282C61.2924 264.987 61.8064 257.88 65.2594 252.045C89.4372 211.189 119.67 173.9 154.826 141.236C158.013 138.275 162.012 136.339 166.308 135.654C202.229 129.934 239.074 126.961 276.623 126.961Z M772.729 126.961C810.319 126.961 847.203 129.941 883.16 135.673C887.455 136.358 891.454 138.295 894.64 141.255C929.787 173.914 960.014 211.196 984.187 252.044C987.64 257.879 988.154 264.986 985.635 271.281C958.059 340.188 919.776 403.668 872.833 459.66C872.432 460.138 871.705 460.16 871.273 459.71C871.114 459.543 871.014 459.328 870.989 459.098C859.593 355.184 789.783 259.442 684.733 210.192C683.68 209.698 682.66 209.129 681.69 208.488C667.299 198.98 652.553 189.963 637.477 181.462C618.997 171.042 621.723 143.055 642.568 139.111C684.724 131.136 728.232 126.961 772.729 126.961Z" fill="url(#hg)"/>
+      <defs><linearGradient id="hg" x1="0" y1="0" x2="1050" y2="0"><stop stop-color="#C4B5FD"/><stop offset="0.55" stop-color="#A855F7"/><stop offset="1" stop-color="#7C3AED"/></linearGradient></defs>
+      <path d="M527.573 285.207L544.891 407.199C548.009 429.164 570.881 442.402 591.48 434.164L707.234 387.87L609.471 463.461C591.753 477.161 591.753 503.906 609.471 517.606L707.234 593.196L591.48 546.903C570.881 538.665 548.009 551.903 544.891 573.867L527.573 695.859L510.256 573.867C507.138 551.903 484.266 538.665 463.667 546.903L347.913 593.196L445.676 517.606C463.394 503.906 463.394 477.161 445.676 463.461L347.913 387.87L463.667 434.164C484.266 442.402 507.138 429.164 510.256 407.199L527.573 285.207Z" fill="white" opacity="0.9"/>
+    </svg>
+    <span class="hdr-name">Oversight Studio</span>
+    <span class="hdr-badge">AI GENERATOR</span>
+  </div>
+  <div class="hdr-status">
+    <div class="status-dot"></div>
+    FLUX · Free · Unlimited
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT PANEL -->
+  <aside class="panel">
+
+    <!-- Session counter -->
+    <div class="session-bar">
+      <span class="session-lbl">Generated this session</span>
+      <span class="session-count" id="sessionCount">0 images</span>
+      <span class="session-clear" onclick="clearGallery()">Clear</span>
+    </div>
+
+    <!-- Prompt -->
+    <div class="panel-section">
+      <div class="panel-label">Prompt</div>
+      <textarea id="prompt" placeholder="Describe your image in detail... e.g. corporate boardroom at night, dramatic lighting, data screens glowing purple, cinematic atmosphere, ultra realistic"></textarea>
+    </div>
+
+    <!-- Oversight presets -->
+    <div class="panel-section">
+      <div class="panel-label">Oversight Presets</div>
+      <div class="presets">
+        <div class="preset-chip" onclick="setPreset('corporate boardroom at night, dark navy atmosphere, data screens glowing with purple light, cinematic, ultra realistic, executive meeting')">Boardroom</div>
+        <div class="preset-chip" onclick="setPreset('abstract data visualization, purple and violet light streams, dark background, flowing information, corporate intelligence, premium brand visual')">Data Flow</div>
+        <div class="preset-chip" onclick="setPreset('executive auditor reviewing documents at desk, late night office, dramatic side lighting, professional, photorealistic, dark atmosphere')">Auditor</div>
+        <div class="preset-chip" onclick="setPreset('glass corporate headquarters exterior at night, purple ambient lighting, modern architecture, premium brand, cinematic wide shot')">HQ Exterior</div>
+        <div class="preset-chip" onclick="setPreset('abstract purple violet sphere with geometric petals, glowing star center, dark background, brand identity visual, 3D rendered, premium')">Brand Mark 3D</div>
+        <div class="preset-chip" onclick="setPreset('close up laptop keyboard extreme macro, purple violet light glow, dark background, technology precision, cinematic')">Tech Detail</div>
+        <div class="preset-chip" onclick="setPreset('aerial view city at night, data network overlay, purple and cyan light connections, governance and oversight concept, futuristic')">City Aerial</div>
+        <div class="preset-chip" onclick="setPreset('minimal abstract geometric pattern, purple violet gradient, dark navy background, corporate luxury brand texture, premium design')">Brand Texture</div>
+        <div class="preset-chip" onclick="setPreset('CFO or executive woman reviewing financial audit report, serious expression, boardroom, professional lighting, photorealistic')">Executive</div>
+        <div class="preset-chip" onclick="setPreset('server room data center, rows of servers with purple blue LED lighting, dramatic atmospheric, technology infrastructure')">Server Room</div>
+      </div>
+    </div>
+
+    <!-- Model -->
+    <div class="panel-section">
+      <div class="panel-label">Model</div>
+      <select id="model">
+        <option value="flux.2-max">FLUX.2 Max — Highest quality</option>
+        <option value="flux.2-pro">FLUX.2 Pro — Professional</option>
+        <option value="flux-pro" selected>FLUX.1 Pro — Balanced</option>
+        <option value="flux-schnell">FLUX.1 Schnell — Fastest</option>
+      </select>
+    </div>
+
+    <!-- Aspect Ratio -->
+    <div class="panel-section">
+      <div class="panel-label">Aspect Ratio</div>
+      <select id="ratio">
+        <option value="1:1">1:1 — Square</option>
+        <option value="16:9" selected>16:9 — Widescreen / Behance hero</option>
+        <option value="4:3">4:3 — Landscape</option>
+        <option value="9:16">9:16 — Portrait / Story</option>
+        <option value="3:2">3:2 — Photo standard</option>
+        <option value="2:3">2:3 — Poster / Print</option>
+      </select>
+    </div>
+
+    <!-- Test mode toggle -->
+    <div class="panel-section">
+      <div class="panel-label">Generation Mode</div>
+      <select id="testMode">
+        <option value="false">Real Generation (Puter.js FLUX)</option>
+        <option value="true">Test Mode (instant preview)</option>
+      </select>
+    </div>
+
+    <!-- Generate -->
+    <button class="gen-btn" id="genBtn" onclick="generate()">
+      <div class="spinner"></div>
+      <span class="btn-text">✦ Generate Image</span>
+    </button>
+
+    <div class="model-note">
+      Powered by <a href="https://puter.com" target="_blank">Puter.js</a> — free & unlimited FLUX.<br>
+      No API key · No signup · No credit card.
+    </div>
+
+  </aside>
+
+  <!-- RIGHT CANVAS -->
+  <main class="canvas-area" id="canvasArea">
+
+    <!-- Error box -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Progress -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label">
+        <span id="progressLabel">Generating with FLUX...</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">✦</div>
+      <div class="empty-title">Your images appear here</div>
+      <div class="empty-sub">Write a prompt or pick an Oversight preset on the left, choose your model and ratio, then hit Generate. Free, unlimited, no account needed.</div>
+    </div>
+
+    <!-- Gallery -->
+    <div class="gallery" id="gallery"></div>
+
+  </main>
+</div>
+
+<script>
+let imageCount = 0;
+let isGenerating = false;
+
+function setPreset(text) {
+  document.getElementById('prompt').value = text;
+  document.getElementById('prompt').focus();
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  if (label) document.getElementById('progressLabel').textContent = label;
+}
+
+function showError(msg) {
+  const eb = document.getElementById('errorBox');
+  eb.textContent = msg;
+  eb.classList.add('show');
+  setTimeout(() => eb.classList.remove('show'), 8000);
+}
+
+function clearGallery() {
+  document.getElementById('gallery').innerHTML = '';
+  document.getElementById('emptyState').style.display = 'flex';
+  imageCount = 0;
+  document.getElementById('sessionCount').textContent = '0 images';
+}
+
+function getRatioDimensions(ratio) {
+  const map = {
+    '1:1':   { width: 1024, height: 1024 },
+    '16:9':  { width: 1344, height: 768 },
+    '4:3':   { width: 1152, height: 864 },
+    '9:16':  { width: 768,  height: 1344 },
+    '3:2':   { width: 1216, height: 832 },
+    '2:3':   { width: 832,  height: 1216 },
+  };
+  return map[ratio] || { width: 1024, height: 1024 };
+}
+
+function addImageToGallery(imgSrc, promptText, model, ratio) {
+  const gallery = document.getElementById('gallery');
+  document.getElementById('emptyState').style.display = 'none';
+
+  const now = new Date();
+  const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const card = document.createElement('div');
+  card.className = 'img-card';
+  card.innerHTML = `
+    <div class="img-time">${time}</div>
+    <img src="${imgSrc}" alt="${promptText.substring(0,60)}" loading="lazy"/>
+    <div class="img-meta">
+      <div class="img-prompt">${promptText}</div>
+      <div class="img-actions">
+        <button class="img-btn img-btn-dl" onclick="downloadImage('${imgSrc}', ${imageCount})">↓ Download</button>
+        <button class="img-btn img-btn-cp" onclick="copyPrompt('${promptText.replace(/'/g,"\\'")}')">Copy prompt</button>
+      </div>
+    </div>
+  `;
+  gallery.insertBefore(card, gallery.firstChild);
+
+  imageCount++;
+  document.getElementById('sessionCount').textContent = imageCount + (imageCount === 1 ? ' image' : ' images');
+}
+
+async function downloadImage(src, idx) {
+  const a = document.createElement('a');
+  a.href = src;
+  a.download = `oversight-ai-${idx + 1}.png`;
+  a.click();
+}
+
+function copyPrompt(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // brief visual feedback handled by button
+  });
+}
+
+async function generate() {
+  if (isGenerating) return;
+
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) {
+    showError('Please enter a prompt first.');
+    return;
+  }
+
+  const model = document.getElementById('model').value;
+  const ratio = document.getElementById('ratio').value;
+  const testMode = document.getElementById('testMode').value === 'true';
+  const dims = getRatioDimensions(ratio);
+
+  isGenerating = true;
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.querySelector('.btn-text').textContent = 'Generating...';
+
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('errorBox').classList.remove('show');
+
+  setProgress(5, 'Connecting to FLUX...');
+
+  try {
+    if (testMode) {
+      // Test mode: show a placeholder instantly so user can verify layout works
+      for (let p = 10; p <= 90; p += 20) {
+        await new Promise(r => setTimeout(r, 200));
+        setProgress(p, p < 50 ? 'Processing prompt...' : 'Rendering image...');
+      }
+      // Use a placeholder image from picsum
+      const placeholderUrl = `https://picsum.photos/seed/${Date.now()}/${dims.width}/${dims.height}`;
+      setProgress(100, 'Complete!');
+      addImageToGallery(placeholderUrl, `[TEST] ${prompt}`, model, ratio);
+    } else {
+      // Real Puter.js generation
+      setProgress(15, 'Sending to FLUX...');
+
+      // Check if puter is available
+      if (typeof puter === 'undefined') {
+        throw new Error('Puter.js not loaded. Make sure you\'re connected to the internet and try refreshing.');
+      }
+
+      setProgress(30, `Generating with ${model}...`);
+
+      // Puter.js txt2img call
+      const imageEl = await puter.ai.txt2img(model, prompt, false);
+
+      setProgress(85, 'Finalising...');
+
+      // Get the src from the returned image element
+      let imgSrc = '';
+      if (imageEl && imageEl.src) {
+        imgSrc = imageEl.src;
+      } else if (typeof imageEl === 'string') {
+        imgSrc = imageEl;
+      } else {
+        throw new Error('Unexpected response from FLUX. Try again.');
+      }
+
+      setProgress(100, 'Done!');
+      addImageToGallery(imgSrc, prompt, model, ratio);
+    }
+
+  } catch (err) {
+    console.error('Generation error:', err);
+    let msg = err.message || 'Generation failed.';
+    if (msg.includes('network') || msg.includes('fetch')) {
+      msg = 'Network error — check your connection and try again.';
+    } else if (msg.includes('puter') || msg.includes('undefined')) {
+      msg = 'Puter.js failed to load. Open this file directly in a browser (not inside Claude) for full generation. In test mode you can still preview the layout.';
+    }
+    showError('⚠ ' + msg);
+  } finally {
+    isGenerating = false;
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.querySelector('.btn-text').textContent = '✦ Generate Image';
+    setTimeout(() => {
+      document.getElementById('progressWrap').classList.remove('show');
+      setProgress(0);
+    }, 2000);
+  }
+}
+
+// Enter key to generate
+document.getElementById('prompt').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) generate();
+});
+</script>
+
+</body>
+</html>
