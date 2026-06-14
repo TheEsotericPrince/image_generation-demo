@@ -248,9 +248,9 @@ input[type=range] {
     <div class="panel-section">
       <div class="panel-label">Model</div>
       <select id="model">
-        <option value="flux.2-max">FLUX.2 Max — Highest quality</option>
-        <option value="flux.2-pro">FLUX.2 Pro — Professional</option>
-        <option value="flux-pro" selected>FLUX.1 Pro — Balanced</option>
+        <option value="flux-2-max">FLUX.2 Max — Highest quality</option>
+        <option value="flux-2-pro">FLUX.2 Pro — Professional</option>
+        <option value="flux-1-pro" selected>FLUX.1 Pro — Balanced</option>
         <option value="flux-schnell">FLUX.1 Schnell — Fastest</option>
       </select>
     </div>
@@ -440,13 +440,27 @@ async function generate() {
 
       // Check if puter is available
       if (typeof puter === 'undefined') {
-        throw new Error('Puter.js not loaded. Make sure you\'re connected to the internet and try refreshing.');
+        throw new Error('Puter.js not loaded. Make sure you are connected to the internet and try refreshing.');
       }
 
-      setProgress(30, `Generating with ${model}...`);
+      setProgress(20, 'Signing in to Puter...');
 
-      // Puter.js txt2img call
-      const imageEl = await puter.ai.txt2img(model, prompt, false);
+      // Puter requires user auth (user-pays model) — sign in if needed
+      // This will show Puter's own login popup if not already signed in
+      try {
+        const isSignedIn = await puter.auth.isSignedIn();
+        if (!isSignedIn) {
+          await puter.auth.signIn();
+        }
+      } catch(authErr) {
+        // If auth fails or user dismisses, still try — some contexts allow anonymous
+        console.warn('Auth step:', authErr);
+      }
+
+      setProgress(40, `Sending prompt to ${model}...`);
+
+      // Correct Puter.js txt2img signature: txt2img(prompt, testMode, options)
+      const imageEl = await puter.ai.txt2img(prompt, false, { model: model });
 
       setProgress(85, 'Finalising...');
 
@@ -454,10 +468,15 @@ async function generate() {
       let imgSrc = '';
       if (imageEl && imageEl.src) {
         imgSrc = imageEl.src;
+      } else if (imageEl instanceof HTMLImageElement) {
+        imgSrc = imageEl.src;
       } else if (typeof imageEl === 'string') {
         imgSrc = imageEl;
+      } else if (imageEl && imageEl.url) {
+        imgSrc = imageEl.url;
       } else {
-        throw new Error('Unexpected response from FLUX. Try again.');
+        console.log('Full response:', imageEl);
+        throw new Error('Unexpected response format. Check console for details.');
       }
 
       setProgress(100, 'Done!');
